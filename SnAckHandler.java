@@ -20,102 +20,105 @@ import com.dell.golf.golfsnservice.service.*;
 
 @Service
 public class SnAckHandler {
-
-	private static final Logger logger = LoggerFactory.getLogger(SnAckHandler.class);
-
-	@Autowired
-	SnAckServiceDao snackServiceDao;
-
-	public SnAckResponse processSnAckData(AsnAckVO asnAckVO) {
-
-		logger.info("SnAckHandler : processAsnAckData Started...");
-		HashMap<String, String> map = null;
-		
-		SnAckResponse snAckResponse = new SnAckResponse();
-		try {
-			map = snackServiceDao.processProcedureCall(asnAckVO);
-			SnAckVO snack = new SnAckVO();
-			if (map != null || !map.isEmpty()) {
-				String xmlString = getXMLStringMessage(asnAckVO,map);
-				snack.setSn_number("PO_SN_NUMBER");
-				snack.setCorrelationID(map.get("PO_VENDOR_SN_MESSAGE_ID"));
-				snack.setMessage(Base64Util.encodeToBase64(xmlString));
-				snAckResponse.setSnACKResponse(snack);
-			}else {
-				snack.setSn_number(null);
-				snack.setCorrelationID(null);
-				snack.setMessage(null);
-				snAckResponse.setSnACKResponse(snack);
-			}
-		} catch (Exception ex) {
-			logger.info("SnAckHandler : processAsnAckData Error occured {}", ex.toString());
-			return snAckResponse;
-		}
-		logger.info("SnAckHandler : processAsnAckData Completed...");
-		return snAckResponse;
-	}
-
-	public String getXMLStringMessage(AsnAckVO asnAckVO,HashMap<String, String> map) {
-		logger.info("AsnAckHandler : getXMLStringMessage Started...");
-		StringBuilder xmlStringBuilder = new StringBuilder();
-		try {
-			OffsetDateTime now = OffsetDateTime.now();
-			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-			String formattedDateTime = now.format(formatter);
-			String senderId = AppConstants.SENDER_ID+AppConstants.UNDERSCORE_SYMBOL+map.get("PO_REGION");
-			String sn_number = map.get("PO_SN_NUMBER"); 
-			String correlationId = map.get("PO_VENDOR_SN_MESSAGE_ID");
-			String status = map.get("PO_STATUS");
-			String reasoncode = map.get("PO_REASON_CODE");
-			String reasondescription = map.get("PO_REASON_DESCRIPTION");
-			String 
-			
-			
-			ShipNotificationAck ack = new ShipNotificationAck();
-			
-			List<ShipNotificationAck.ShipNotificationLine> shipnotificationlineobject = new ArrayList<ShipNotificationAck.ShipNotificationLine>();
-			
-			ShipNotificationAck.ShipNotificationLines shipnotificationlinesobj = new ShipNotificationAck.ShipNotificationLines();
-	        for()
-			shipnotificationlinesobj.setShipNotificationLineList(shipnotificationlineobject);
-
-			xmlStringBuilder.append(
-					"<v1:SNAck xmlns:v1=\"http://schemas.dell.com/fulfillment/logistics/messaging/SNAck/V1_0\">")
-						.append("<MessageHeader>")
-							.append("<MessageID>").append(asnAckVO.getGolfMessageId())
-							.append("</MessageID>").append("<MessageTimeStamp>").append(formattedDateTime).append("</MessageTimeStamp>")
-							.append("<SenderID>").append(senderId).append("</SenderID>")
-					      //.append("<ReceiverID>").append().append("</ReceiverID>")
-							.append("<MessageType>").append(AppConstants.MESSAGE_TYPE).append("</MessageType>")
-							.append("<CorrelationID>").append(correlationId).append("</CorrelationID>")
-						.append("</MessageHeader>")
-					    .append("<SnHeader>")
-						    .append("<Status>").append(status).append("</Status>")
-						    .append("<Errors>")
-						    .append("<Error>")
-				                .append("<Type>").append(reasoncode).append("</Type>")
-			      	            .append("<Reason>").append(reasondescription).append("</Reason>")
-						    .append("</Error>")
-					        .append("</Errors>")
-						.append("</SnHeader>")
-						.append("<Ship_Notification_Lines>")
-						.append("<Ship_Notification_Line>")
-					        .append("<Status>").append().append("</Status>")
-					        .append("<Errors>")
-						    .append("<Error>")
-						        .append("<Type>").append().append("</Type>")
-		      	                .append("<Reason>").append().append("</Reason>")
-		      	            .append("</Errors>")
-					        .append("</Error>")
-					    .append("</Ship_Notification_Lines>")
-						.append("</Ship_Notification_Line>")
-					.append("</v1:SNAck>");
-		} catch (Exception ex) {
-			logger.error("AsnAckHandler : getXMLStringMessage Error occured...{}p", ex.toString());
-			
-		}
-		logger.info("AsnAckHandler : getXMLStringMessage Completed...");
-		return xmlStringBuilder.toString();
-	}
-
+ 
+    private static final Logger logger = LoggerFactory.getLogger(SnAckHandler.class);
+ 
+    @Autowired
+    private SnAckServiceDao snackServiceDao;
+ 
+    public SnAckResponse processSnAckData(AsnAckVO asnAckVO) {
+        logger.info("SnAckHandler : processSnAckData Started...");
+        SnAckResponse snAckResponse = new SnAckResponse();
+ 
+        try {
+            HashMap<String, String> map = snackServiceDao.processProcedureCall(asnAckVO);
+ 
+            if (map != null && !map.isEmpty()) {
+                String xmlString = generateXMLFromProcedureData(asnAckVO, map);
+                SnAckVO snack = new SnAckVO();
+                snack.setSn_number(map.get("PO_SN_NUMBER"));
+                snack.setCorrelationID(map.get("PO_VENDOR_SN_MESSAGE_ID"));
+                snack.setMessage(Base64Util.encodeToBase64(xmlString));
+                snAckResponse.setSnACKResponse(snack);
+            }
+        } catch (Exception ex) {
+            logger.error("SnAckHandler : processSnAckData Error occurred {}", ex.toString());
+        }
+ 
+        logger.info("SnAckHandler : processSnAckData Completed...");
+        return snAckResponse;
+    }
+ 
+    private String generateXMLFromProcedureData(AsnAckVO asnAckVO, HashMap<String, String> map) throws Exception {
+        ShipNotificationAck ack = new ShipNotificationAck();
+ 
+        // ✅ MESSAGE_HEADER
+        ShipNotificationAck.MessageHeader header = new ShipNotificationAck.MessageHeader();
+        header.setSenderId("GOLF_DAO");
+        header.setReceiverId("CEVADELL");
+        header.setMessageId(map.get("PO_MESSAGE_ID"));
+        header.setMessageType("SHIP_NOTIFICATION_ACK");
+        header.setVersion("4.0");
+        header.setCorrelationId(map.get("PO_VENDOR_SN_MESSAGE_ID"));
+        header.setCreationTs(map.get("PO_CREATION_TS"));
+        ack.setMessageHeader(header);
+ 
+        // ✅ SN_HEADER
+        ShipNotificationAck.SnHeader snHeader = new ShipNotificationAck.SnHeader();
+        snHeader.setSnNumber(map.get("PO_SN_NUMBER"));
+        snHeader.setStatus(map.get("PO_STATUS"));
+ 
+        // ❗ Add SN_HEADER Errors Only if Status = "N"
+        if ("N".equals(map.get("PO_STATUS"))) {
+            ShipNotificationAck.Errors snErrors = new ShipNotificationAck.Errors();
+            List<ShipNotificationAck.ErrorDetail> errorList = new ArrayList<>();
+            if (map.containsKey("PO_ERROR_TYPE") && map.containsKey("PO_ERROR_REASON")) {
+                errorList.add(new ShipNotificationAck.ErrorDetail(map.get("PO_ERROR_TYPE"), map.get("PO_ERROR_REASON")));
+            }
+            snErrors.setError(errorList);
+            snHeader.setErrors(snErrors);
+        }
+ 
+        ack.setSnHeader(snHeader);
+ 
+        // ✅ SHIP_NOTIFICATION_LINES
+        ShipNotificationAck.ShipNotificationLines shipLines = new ShipNotificationAck.ShipNotificationLines();
+        List<ShipNotificationAck.ShipNotificationLine> lineList = new ArrayList<>();
+ 
+        // ❗ Fetch ASN Load IDs from DB (Stored Procedure Call)
+        List<Map<String, String>> shipLinesData = snackServiceDao.getShipNotificationLines(asnAckVO);
+ 
+        for (Map<String, String> lineData : shipLinesData) { // ✅ Using for-each loop
+            ShipNotificationAck.ShipNotificationLine line = new ShipNotificationAck.ShipNotificationLine();
+            line.setLoadId(lineData.get("LOADID"));
+            line.setStatus(lineData.get("STATUS"));
+ 
+            // ❗ Add ERROR if STATUS = "N"
+            if ("N".equals(lineData.get("STATUS"))) {
+                ShipNotificationAck.Errors lineErrors = new ShipNotificationAck.Errors();
+                List<ShipNotificationAck.ErrorDetail> lineErrorList = new ArrayList<>();
+ 
+                if (lineData.containsKey("ERROR_TYPE") && lineData.containsKey("ERROR_REASON")) {
+                    lineErrorList.add(new ShipNotificationAck.ErrorDetail(lineData.get("ERROR_TYPE"), lineData.get("ERROR_REASON")));
+                }
+                lineErrors.setError(lineErrorList);
+                line.setErrors(lineErrors);
+            }
+ 
+            lineList.add(line);
+        }
+ 
+        shipLines.setShipNotificationLine(lineList);
+        ack.setShipNotificationLines(shipLines);
+ 
+        // ✅ Convert Java to XML
+        JAXBContext context = JAXBContext.newInstance(ShipNotificationAck.class);
+        Marshaller marshaller = context.createMarshaller();
+        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+ 
+        StringWriter sw = new StringWriter();
+        marshaller.marshal(ack, sw);
+        return sw.toString();
+    }
 }
+ 
